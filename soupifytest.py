@@ -35,6 +35,9 @@ def youtubeDownload(songs):
             "preferredcodec": "mp3",
             "preferredquality": "192",
         }],
+        "download_archive": "downloaded.txt",
+        'noplaylist' : True,
+        "outtmpl": "./songs/%(title)s-%(id)s-.%(ext)s'",
         "logger": Logger(),
     }
     print(songs)
@@ -103,8 +106,8 @@ def getSpotifySongs(playlistID):
 
 if (__name__ == "__main__"):
     playlistID = '37i9dQZF1DX7Jl5KP2eZaS'
-    #urls = searchYoutube(getSpotifySongs(playlistID))
-    #for (song, url) in urls:
-    #    print(song)
-    #    print(url)
-    youtubeDownload([("Bob", ["https://www.youtube.com/watch?v=6ONRf7h3Mdk"])])
+    urls = searchYoutube(getSpotifySongs(playlistID))
+    for (song, url) in urls:
+        print(song)
+        print(url)
+    youtubeDownload(urls)
