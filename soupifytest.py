@@ -6,14 +6,12 @@ from selenium import webdriver
 # from selenium.webdriver.support import expected_conditions as EC
 # from selenium.webdriver.support.ui import WebDriverWait 
 # from selenium.webdriver.common.by import By 
-from dotenv import load_dotenv
-import os;
 import spotipy
 from spotipy.oauth2 import SpotifyClientCredentials
 # from spotipy import client
-
+from dotenv import load_dotenv
+import os;
 import youtube_dl 
-
 load_dotenv()
 
 class Logger(object):
@@ -28,6 +26,7 @@ class Logger(object):
         print(msg)
 
 def youtubeDownload(songs):
+
     options = {
         "format": "bestaudio/best",
         "postprocessors": [{
@@ -40,43 +39,44 @@ def youtubeDownload(songs):
         "outtmpl": "./songs/%(title)s-%(id)s-.%(ext)s'",
         "logger": Logger(),
     }
+
     print(songs)
     with youtube_dl.YoutubeDL(options) as ytdl:
         for (song, urls) in songs:
-            print(urls[0])
-            ytdl.download([urls[0]])
+            if (len(urls) > 0):
+                print(urls[0])
+                ytdl.download([urls[0]])
+
 
 
 # yt-simple-endpoint style-scope ytd-video-renderer
-def searchYoutube(songs):
+def searchYoutube(songs, limit=5):
 
-    driver = webdriver.Firefox(executable_path=os.environ.get("geckodriverPath"))
-    VIDEO_ELEMENT = "video-title"
+    CSS_VIDEO_ID = "video-title"
     YOUTUBE_SEARCH = "https://www.youtube.com/results?search_query="
-    LIMIT = 5
+
     songLinks = []
+    numberOfSongs = len(songs)
+    with webdriver.Firefox(executable_path=os.environ.get("geckodriverPath")) as driver:
+        for idx, song in enumerate(songs, start=1):
 
-    for idx, song in enumerate(songs):
+            query = urllib.parse.quote(song)
+            url = YOUTUBE_SEARCH + query
 
-        query = urllib.parse.quote(song)
-        url = YOUTUBE_SEARCH + query
+            driver.get(url)
 
-        driver.get(url)
+            elements = driver.find_elements_by_id(CSS_VIDEO_ID)
+            
+            links = []
+            for element in elements:
+                if (element.get_attribute("href") != None):
+                    links.append(element.get_attribute("href"))
+                    if len(links) == limit:
+                        break
 
-        elements = driver.find_elements_by_id(VIDEO_ELEMENT)
-        
-        links = []
-        for element in elements:
-            if (element.get_attribute("href") != None):
-                links.append(element.get_attribute("href"))
-                if len(links) == LIMIT:
-                    break
+            songLinks.append((song, links))
 
-        songLinks.append((song, links))
-
-        print (f"Progress: {((idx + 1) / len(songs)) * 100}")
-
-    driver.close()
+            print (f"Progress: {(idx / numberOfSongs) * 100}")
 
     return songLinks
     
