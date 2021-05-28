@@ -16,6 +16,34 @@ import youtube_dl
 
 load_dotenv()
 
+class Logger(object):
+
+    def debug(__self__, msg):
+        pass
+
+    def warning(__self__, msg):
+        pass 
+
+    def error(__self__, msg):
+        print(msg)
+
+def youtubeDownload(songs):
+    options = {
+        "format": "bestaudio/best",
+        "postprocessors": [{
+            "key": "FFmpegExtractAudio",
+            "preferredcodec": "mp3",
+            "preferredquality": "192",
+        }],
+        "logger": Logger(),
+    }
+    print(songs)
+    with youtube_dl.YoutubeDL(options) as ytdl:
+        for (song, urls) in songs:
+            print(urls[0])
+            ytdl.download([urls[0]])
+
+
 # yt-simple-endpoint style-scope ytd-video-renderer
 def searchYoutube(songs):
 
@@ -75,7 +103,8 @@ def getSpotifySongs(playlistID):
 
 if (__name__ == "__main__"):
     playlistID = '37i9dQZF1DX7Jl5KP2eZaS'
-    urls = searchYoutube(getSpotifySongs(playlistID))
-    for (song, url) in urls:
-        print(song)
-        print(url)
+    #urls = searchYoutube(getSpotifySongs(playlistID))
+    #for (song, url) in urls:
+    #    print(song)
+    #    print(url)
+    youtubeDownload([("Bob", ["https://www.youtube.com/watch?v=6ONRf7h3Mdk"])])
