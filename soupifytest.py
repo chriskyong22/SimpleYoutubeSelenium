@@ -36,11 +36,10 @@ def youtubeDownload(songs):
         }],
         "download_archive": "downloaded.txt",
         'noplaylist' : True,
-        "outtmpl": "./songs/%(title)s-%(id)s-.%(ext)s'",
+        "outtmpl": "./songs/%(title)s %(id)s.%(ext)s'",
         "logger": Logger(),
     }
 
-    print(songs)
     with youtube_dl.YoutubeDL(options) as ytdl:
         for (song, urls) in songs:
             if (len(urls) > 0):
@@ -57,6 +56,8 @@ def searchYoutube(songs, limit=5):
 
     songLinks = []
     numberOfSongs = len(songs)
+    # Note if the browser has to update, the script will crash. 
+    # (Just wait for update and then execute again)
     with webdriver.Firefox(executable_path=os.environ.get("geckodriverPath")) as driver:
         for idx, song in enumerate(songs, start=1):
 
@@ -80,7 +81,7 @@ def searchYoutube(songs, limit=5):
 
     return songLinks
     
-def getSpotifySongs(playlistID):
+def getPlaylistSpotifySongs(playlistID):
 
     spotify = spotipy.Spotify(client_credentials_manager=SpotifyClientCredentials(
         client_id=os.environ.get("spotify-client-id"), 
@@ -104,10 +105,51 @@ def getSpotifySongs(playlistID):
 
     return songs
 
+def getAlbumSpotifySongs(albumID):
+
+    spotify = spotipy.Spotify(client_credentials_manager=SpotifyClientCredentials(
+        client_id=os.environ.get("spotify-client-id"), 
+        client_secret=os.environ.get("spotify-client-secret")))
+
+    # Retrieve the album contents
+    results = spotify.album(albumID)
+
+    songs = []
+
+    # Parse the contents 
+    for item in results['tracks']['items']:
+
+        # Get all artists of the track
+        artists = ""
+        for artist in item['artists']:
+            artists += f"{artist['name']} " 
+
+        # Want to get rid of the last " " therefore -1 for artists
+        songs.append(f"{item['name']} {artists[:-1]}")
+
+    return songs
+
+def updateCache(songsFolder="./songs", cacheFile="./downloaded.txt"):
+    directory = os.scandir(songsFolder)
+    storedVideos = ""
+    for file in directory:
+        # Seperate the File Name into its respective parts listed in the options of youtube dl
+        youtubeID = file.name.split(" ")
+
+        # Get rid of the .mp3 extension
+        youtubeID = youtubeID[-1].split(".")[0]
+
+        storedVideos += f"youtube {youtubeID}\n"
+    with open(cacheFile, "w") as cache:
+        cache.write(storedVideos) 
+
 if (__name__ == "__main__"):
     playlistID = '37i9dQZF1DX7Jl5KP2eZaS'
-    urls = searchYoutube(getSpotifySongs(playlistID))
+
+    urls = searchYoutube(getPlaylistSpotifySongs(playlistID))
+    updateCache()
     for (song, url) in urls:
         print(song)
         print(url)
     youtubeDownload(urls)
+    
