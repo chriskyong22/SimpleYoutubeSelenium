@@ -9,6 +9,10 @@ from selenium import webdriver
 import spotipy
 from spotipy.oauth2 import SpotifyClientCredentials
 # from spotipy import client
+import sqlite3 
+from sqlite3 import Error 
+import datetime
+
 from dotenv import load_dotenv
 import os;
 import youtube_dl 
@@ -80,7 +84,7 @@ def searchYoutube(songs, limit=5):
             print (f"Progress: {(idx / numberOfSongs) * 100}")
 
     return songLinks
-    
+
 def getPlaylistSpotifySongs(playlistID):
 
     spotify = spotipy.Spotify(client_credentials_manager=SpotifyClientCredentials(
@@ -143,13 +147,69 @@ def updateCache(songsFolder="./songs", cacheFile="./downloaded.txt"):
     with open(cacheFile, "w") as cache:
         cache.write(storedVideos) 
 
+def archiveURL(databaseLocation, songInfo):
+    song = songInfo[0]
+    urls = " ".join(songInfo[1])
+    executeQuery(databaseLocation, 
+            '''INSERT INTO urlCache (song, urls, dateEntered) 
+                VALUES(?, ?, datetime('now')) 
+                ON CONFLICT(song) DO UPDATE SET urls=(?), dateEntered=datetime('now')''', 
+                (song, urls, urls)
+            )
+    
+def retrieveURLFromCache(databaseLocation, song):
+    urls = []
+    SECONDS_IN_HOUR = 3600
+    HOURS_IN_DAY = 24
+    for row in executeQuery(databaseLocation, "select * from urlCache where song=(?)", (song,)):
+        dateEntered = row[-1]
+        current = datetime.datetime.utcnow()
+        past = datetime.datetime.strptime(dateEntered, '%Y-%m-%d %H:%M:%S')
+        timePassed = current - past
+        if (timePassed.total_seconds() / SECONDS_IN_HOUR < HOURS_IN_DAY):
+            urls = row[1].split(" ")
+    return urls
+
+def getURLs(songsInfo):
+    databaseLocation = "./urlCache"
+    songsWithURLs = []
+    songsNotInCache = []
+    for song in songsInfo:
+        urls = retrieveURLFromCache(databaseLocation, song)
+        if urls:
+            songsWithURLs.append((song, urls))
+        else:
+            songsNotInCache.append(song)
+
+    songsNotInCache = searchYoutube(songsNotInCache)
+    for song in songsNotInCache:
+        archiveURL(databaseLocation, song)
+        print(song)
+
+    return songsWithURLs
+    
+
+def executeQuery(databaseLocation, query, params=()):
+    with sqlite3.connect(databaseLocation) as connection:
+        cursor = connection.cursor()
+        return cursor.execute(query, params)
+
+def getAllRows():
+    for row in executeQuery("./urlCache", '''select * from urlCache'''):
+        print(row)
+
 if (__name__ == "__main__"):
+    databaseLocation = "./urlCache"
+    executeQuery(databaseLocation, '''CREATE TABLE IF NOT EXISTS urlCache 
+            (song varchar PRIMARY KEY, urls varchar, dateEntered TEXT)''')
+    # print(retrieveURLFromCache(databaseLocation, "bob - tooty"))
+    # archiveURL(databaseLocation, ("bob - tooty", ["youtube.com/tester", "youtube.com/testmaker"]))
     playlistID = '37i9dQZF1DX7Jl5KP2eZaS'
 
-    urls = searchYoutube(getPlaylistSpotifySongs(playlistID))
+    urls = getURLs(getPlaylistSpotifySongs(playlistID))
     updateCache()
     for (song, url) in urls:
         print(song)
         print(url)
-    youtubeDownload(urls)
+    # youtubeDownload(urls)
     
