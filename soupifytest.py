@@ -18,6 +18,9 @@ import os;
 import youtube_dl 
 load_dotenv()
 
+from threading import Thread, Lock
+import math
+
 class Logger(object):
 
     def debug(__self__, msg):
@@ -29,7 +32,7 @@ class Logger(object):
     def error(__self__, msg):
         print(msg)
 
-def youtubeDownload(songs):
+def youtubeDownload(songs, threadCount=5):
 
     options = {
         "format": "bestaudio/best",
@@ -44,26 +47,96 @@ def youtubeDownload(songs):
         "logger": Logger(),
     }
 
+    if not songs:
+        return
+
+    numberOfSongs = len(songs)
+    
+    baseLoad = math.floor(numberOfSongs / threadCount)
+
+    threadsWithExtraLoad = numberOfSongs % threadCount
+    startingThreadWithExtraLoad = threadCount - threadsWithExtraLoad
+    print(startingThreadWithExtraLoad)
+    threads = [None] * threadCount
+    songCount = 0
+    threadID = 0
+    while (threadID < threadCount):
+        if (threadID < startingThreadWithExtraLoad):
+            threads[threadID] = Thread(target=youtubeDownloadMultiThreaded, args=(songs, songCount, songCount + baseLoad, options))
+            threads[threadID].start()
+        else:
+            threads[threadID] = Thread(target=youtubeDownloadMultiThreaded, args=(songs, songCount, songCount + baseLoad + 1, options))
+            threads[threadID].start()
+        # print(f"{threadID} {songCount}-", end="")
+        songCount += baseLoad
+        if (threadID >= startingThreadWithExtraLoad):
+            songCount += 1
+        threadID += 1
+        # print(f"{songCount}")
+        
+    for threadID in range(len(threads)):
+        threads[threadID].join()
+
+
+def youtubeDownloadMultiThreaded(songs, start, end, options):
+    if (start == end):
+        return
+    print(f"{start} {end} !!!")
     with youtube_dl.YoutubeDL(options) as ytdl:
-        for (song, urls) in songs:
+        for (song, urls) in songs[start:end]:
             if (len(urls) > 0):
                 print(urls[0])
                 ytdl.download([urls[0]])
 
-
-
 # yt-simple-endpoint style-scope ytd-video-renderer
-def searchYoutube(songs, limit=5):
+def searchYoutube(songs, limit=5, threadCount=10):
 
     CSS_VIDEO_ID = "video-title"
     YOUTUBE_SEARCH = "https://www.youtube.com/results?search_query="
 
-    songLinks = []
+    if not songs:
+        return []
+
     numberOfSongs = len(songs)
+    
+    baseLoad = math.floor(numberOfSongs / threadCount)
+
+    threadsWithExtraLoad = numberOfSongs % threadCount
+    startingThreadWithExtraLoad = threadCount - threadsWithExtraLoad
+
+    threads = [None] * threadCount
+    songCount = 0
+    threadID = 0
+
+    while (threadID < threadCount):
+        if (threadID < startingThreadWithExtraLoad):
+            threads[threadID] = Thread(target=searchYoutubeMultiThreaded, args=(songs, songCount, songCount + baseLoad, limit))
+            threads[threadID].start()
+        else:
+            threads[threadID] = Thread(target=searchYoutubeMultiThreaded, args=(songs, songCount, songCount + baseLoad + 1, limit))
+            threads[threadID].start()
+        songCount += baseLoad
+        if (threadID >= startingThreadWithExtraLoad):
+            songCount += 1
+        threadID += 1
+        
+    for threadID in range(len(threads)):
+        threads[threadID].join()
+
+    return songs
+
+def searchYoutubeMultiThreaded(songs, start, end, limit):
+
+    if (start == end):
+        return
+
+    CSS_VIDEO_ID = "video-title"
+    YOUTUBE_SEARCH = "https://www.youtube.com/results?search_query="
+
     # Note if the browser has to update, the script will crash. 
     # (Just wait for update and then execute again)
     with webdriver.Firefox(executable_path=os.environ.get("geckodriverPath")) as driver:
-        for idx, song in enumerate(songs, start=1):
+        for idx, song in enumerate(songs[start:end], start=start):
 
             query = urllib.parse.quote(song)
             url = YOUTUBE_SEARCH + query
@@ -79,11 +152,8 @@ def searchYoutube(songs, limit=5):
                     if len(links) == limit:
                         break
 
-            songLinks.append((song, links))
-
-            print (f"Progress: {(idx / numberOfSongs) * 100}")
-
-    return songLinks
+            songs[idx] = ((song, links))
+    return songs
 
 def getPlaylistSpotifySongs(playlistID):
 
@@ -180,11 +250,10 @@ def getURLs(songsInfo):
             songsWithURLs.append((song, urls))
         else:
             songsNotInCache.append(song)
-
+    
     songsNotInCache = searchYoutube(songsNotInCache)
     for song in songsNotInCache:
         archiveURL(databaseLocation, song)
-        print(song)
 
     return songsWithURLs
     
@@ -202,14 +271,14 @@ if (__name__ == "__main__"):
     databaseLocation = "./urlCache"
     executeQuery(databaseLocation, '''CREATE TABLE IF NOT EXISTS urlCache 
             (song varchar PRIMARY KEY, urls varchar, dateEntered TEXT)''')
-    # print(retrieveURLFromCache(databaseLocation, "bob - tooty"))
-    # archiveURL(databaseLocation, ("bob - tooty", ["youtube.com/tester", "youtube.com/testmaker"]))
+
     playlistID = '37i9dQZF1DX7Jl5KP2eZaS'
 
     urls = getURLs(getPlaylistSpotifySongs(playlistID))
     updateCache()
-    for (song, url) in urls:
-        print(song)
-        print(url)
-    # youtubeDownload(urls)
+    # for (song, url) in urls:
+    #     print(song)
+    #     print(url)
+    youtubeDownload(urls)
+    # getAllRows()
     
